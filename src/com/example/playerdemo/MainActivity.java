@@ -210,9 +210,11 @@ public class MainActivity extends Activity implements OnCompletionListener {
 	
 	
 	private class CallStateReceiver extends BroadcastReceiver {
-		private boolean flag;
+		private boolean flag; // flag for player in state 2 interrupted
+		private int status; // 1:incoming, 2:incoming answered, 3:outgoing, 0:undetermined 
 	    public CallStateReceiver() {
 	    	flag = false;
+	    	status = 0;
 	    }
 
 	    @Override
@@ -221,27 +223,55 @@ public class MainActivity extends Activity implements OnCompletionListener {
 	    	
 	    	if(TelephonyManager.ACTION_PHONE_STATE_CHANGED.equals(action)){
 	    		String state = intent.getStringExtra(TelephonyManager.EXTRA_STATE);
-	    		Toast.makeText(context, state, Toast.LENGTH_LONG).show();
+	    		
 	    		if(TelephonyManager.EXTRA_STATE_RINGING.equals(state)){
-	    			// Incoming call
+	    			// Incoming call rings
+	    			Toast.makeText(context, "Incoming Ringing", Toast.LENGTH_LONG).show();
+	    			status = 1;
 	    			if(player != null && playerState == 2){
 	    				Pause();
 	    				flag = true;
 	    			}
 	    			Log.d(TAG, "PlayerState: " + playerState);
 	    		}else if(TelephonyManager.EXTRA_STATE_OFFHOOK.equals(state)){
-	    			// Call offhook
+	    			// Call off-hook
+	    			if(status == 1){
+	    				Toast.makeText(context, "Incoming Answered", Toast.LENGTH_LONG).show();
+	    				status = 2;
+	    			}else if(status == 0){
+	    				// Outgoing call dialed
+	    				Toast.makeText(context, "Outgoing Dialed", Toast.LENGTH_LONG).show();
+	    				status = 3;
+	    				if(player != null && playerState == 2){
+	        				Pause();
+	        				flag = true;
+	        			}
+	    		        Log.d(TAG, "PlayerState: " + playerState);
+	    			}
 	    		}else if(TelephonyManager.EXTRA_STATE_IDLE.equals(state)){
 	    			// Incomming/Outgoing Call ends
+	    			//Toast.makeText(context, state, Toast.LENGTH_LONG).show();
+	    			if(status == 1){
+	    				// Incoming Missed or Rejected
+	    				Toast.makeText(context, "Incoming Missed or Rejected", Toast.LENGTH_LONG).show();
+	    			}else if(status == 2){
+	    				// Incoming Answer Ended
+	    				Toast.makeText(context, "Incoming Answer Ended", Toast.LENGTH_LONG).show();
+	    			}else if(status == 3){
+	    				// Outgoing Ended
+	    				Toast.makeText(context, "Outgoing Ended", Toast.LENGTH_LONG).show();
+	    			}
 	    			if(player != null && flag && playerState == 4){
 	    				start();
 	    				flag = false;
 	    			}
+	    			status = 0;
 	    			Log.d(TAG, "PlayerState: " + playerState);
 	    		}
 	    	}else if(Intent.ACTION_NEW_OUTGOING_CALL.equals(action)){	
-	    		// Outgoing call
-		        Toast.makeText(context, "Outgoing", Toast.LENGTH_LONG).show();
+	    		// Outgoing call dialed
+		        Toast.makeText(context, "Outgoing Dialed", Toast.LENGTH_LONG).show();
+    			status = 3;
 		        if(player != null && playerState == 2){
     				Pause();
     				flag = true;
