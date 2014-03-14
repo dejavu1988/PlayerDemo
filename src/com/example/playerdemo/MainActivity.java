@@ -8,6 +8,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.media.AudioManager;
+import android.media.AudioManager.OnAudioFocusChangeListener;
 import android.media.MediaPlayer;
 import android.media.MediaPlayer.OnCompletionListener;
 import android.os.Bundle;
@@ -29,8 +30,10 @@ public class MainActivity extends Activity implements OnCompletionListener {
 	private Button startBtn, stopBtn;
 	private String sourcePath;
 	private MediaPlayer player;
+	private AudioManager am;
+	private boolean flag; 
 	
-	private CallStateReceiver callStateReceiver;
+	//private CallStateReceiver callStateReceiver;
 	
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
@@ -70,15 +73,18 @@ public class MainActivity extends Activity implements OnCompletionListener {
 		});
 		
 		playInForeground = false;
-		playerState = 0;
-		init();
-		Log.d(TAG, "PlayerState: " + playerState);
-		
-		registerCallStateMonitor();
+		playerState = 0;		
+		flag = false;
+		boolean gotFocus = init();
+		if(gotFocus){
+			prepare();
+			Log.d(TAG, "PlayerState: " + playerState);		
+			//registerCallStateMonitor();
+		}
 		
 	}
 	
-	private void init(){
+	private boolean init(){
 		sourcePath = Environment.getExternalStorageDirectory().getPath() + "/Music/Andre_Rieu_The_Skaters_Waltz.mp3";
 		player = new MediaPlayer();
 		player.setOnCompletionListener(this);
@@ -94,6 +100,20 @@ public class MainActivity extends Activity implements OnCompletionListener {
 			Log.d(TAG, "Source Exception: " + e.getMessage());
 		}
 		player.setAudioStreamType(AudioManager.STREAM_MUSIC);
+		am = (AudioManager) this.getSystemService(Context.AUDIO_SERVICE);
+		int result = am.requestAudioFocus(afChangeListener,
+                // Use the music stream.
+                AudioManager.STREAM_MUSIC,
+                // Request permanent focus.
+                AudioManager.AUDIOFOCUS_GAIN);
+
+		if (result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
+		    return true;
+		} else return false;
+		
+	}
+	
+	private void prepare(){
 		try {
 			player.prepare();
 		} catch (IllegalStateException e) {
@@ -106,10 +126,46 @@ public class MainActivity extends Activity implements OnCompletionListener {
 		playerState = 1;
 	}
 	
+	private OnAudioFocusChangeListener afChangeListener = new OnAudioFocusChangeListener() {
+	    public void onAudioFocusChange(int focusChange) {
+	    	switch(focusChange){
+	    	case AudioManager.AUDIOFOCUS_LOSS_TRANSIENT:
+	    		// Pause playback
+	    		Toast.makeText(MainActivity.this, "Focus loss transient", Toast.LENGTH_LONG).show();
+	        	if(player != null && playerState == 2){
+    				Pause();
+    				flag = true;
+    			}
+		        Log.d(TAG, "PlayerState: " + playerState);
+	    		break;
+	    	case AudioManager.AUDIOFOCUS_LOSS:
+	    		// Stop playback: focus taken by other music services
+	    		Toast.makeText(MainActivity.this, "Focus loss permanent", Toast.LENGTH_LONG).show();
+	    		am.abandonAudioFocus(afChangeListener);
+	    		if(player != null && playerState == 2){
+    				stop();
+    			}
+	    		player.release();  
+	        	break;
+	    	case AudioManager.AUDIOFOCUS_GAIN:
+	    		// Resume playback 
+	        	Toast.makeText(MainActivity.this, "Focus gain", Toast.LENGTH_LONG).show();
+	        	if(player != null && flag && playerState == 4){
+    				start();
+    				flag = false;
+    			}
+    			Log.d(TAG, "PlayerState: " + playerState);
+	    		break;
+	    	}
+	        
+	    }
+	};
+	
 	private void start(){
 		if(player == null) return;
 		player.start();
 		playerState = 2;
+		
 	}
 	
 	// by user
@@ -164,7 +220,17 @@ public class MainActivity extends Activity implements OnCompletionListener {
 	@Override
 	public void onCompletion(MediaPlayer mp) {
 		// TODO Auto-generated method stub
-		mp.release();
+		mp.stop();
+		try {
+			mp.prepare();
+		} catch (IllegalStateException e) {
+			Log.d(TAG, "Prepare Exception: " + e.getMessage());
+			mp.release();
+		} catch (IOException e) {
+			Log.d(TAG, "Prepare Exception: " + e.getMessage());
+			mp.release();
+		}
+		mp.seekTo(0);
 		startBtn.setText("Start");
 		playerState = 1;
 	}
@@ -182,7 +248,7 @@ public class MainActivity extends Activity implements OnCompletionListener {
 	
 	@Override
 	public void onPause(){
-		if(player == null) {
+		if(player != null) {
 			if(playInForeground && player.isPlaying()){
 				Pause();
 			}
@@ -193,7 +259,7 @@ public class MainActivity extends Activity implements OnCompletionListener {
 	
 	@Override
 	public void onStop(){
-		if(player == null) {
+		if(player != null) {
 			if(playInForeground && player.isPlaying()){
 				Pause();
 			}
@@ -204,12 +270,15 @@ public class MainActivity extends Activity implements OnCompletionListener {
 	
 	@Override
 	public void onDestroy(){
-		unregisterCallStateMonitor();
+		//unregisterCallStateMonitor();
+		// Abandon audio focus when playback complete    
+		am.abandonAudioFocus(afChangeListener);
+		player.release();
 		super.onDestroy();
 	}
 	
 	
-	private class CallStateReceiver extends BroadcastReceiver {
+/*	private class CallStateReceiver extends BroadcastReceiver {
 		private boolean flag; // flag for player in state 2 interrupted
 		private int status; // 1:incoming, 2:incoming answered, 3:outgoing, 0:undetermined 
 	    public CallStateReceiver() {
@@ -292,7 +361,12 @@ public class MainActivity extends Activity implements OnCompletionListener {
 	}
 		
 	private void unregisterCallStateMonitor(){
-		this.unregisterReceiver(callStateReceiver);
-	}
+		try{
+			this.unregisterReceiver(callStateReceiver);
+		}catch (IllegalArgumentException e){
+			Toast.makeText(this, "Focus ungot.", Toast.LENGTH_LONG).show();
+		}
+		
+	}*/
 
 }
