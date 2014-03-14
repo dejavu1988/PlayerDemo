@@ -31,7 +31,7 @@ public class MainActivity extends Activity implements OnCompletionListener {
 	private String sourcePath;
 	private MediaPlayer player;
 	private AudioManager am;
-	private boolean flag; 
+	
 	
 	//private CallStateReceiver callStateReceiver;
 	
@@ -74,7 +74,6 @@ public class MainActivity extends Activity implements OnCompletionListener {
 		
 		playInForeground = false;
 		playerState = 0;		
-		flag = false;
 		boolean gotFocus = init();
 		if(gotFocus){
 			prepare();
@@ -127,6 +126,7 @@ public class MainActivity extends Activity implements OnCompletionListener {
 	}
 	
 	private OnAudioFocusChangeListener afChangeListener = new OnAudioFocusChangeListener() {
+		private boolean flag = false;
 	    public void onAudioFocusChange(int focusChange) {
 	    	switch(focusChange){
 	    	case AudioManager.AUDIOFOCUS_LOSS_TRANSIENT:
